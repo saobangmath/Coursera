@@ -9,6 +9,11 @@ import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
 
+// IMPORTANT: This file should use the Transaction class from the SAME directory (consensus)
+// NOT the Transaction class from scroogeCoin folder
+// The consensus Transaction has: final int id; and constructor Transaction(int id)
+// The scroogeCoin Transaction has: complex structure with inputs/outputs
+
 public class Simulation {
 
    public static void main(String[] args) {
