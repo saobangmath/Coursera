@@ -39,14 +39,15 @@ public class BlockChain {
         ByteArrayWrapper genesisBlockHash = new ByteArrayWrapper(genesisBlock.getHash());
 
         // initialize the block chain with the genesis block
+        TxHandler genesisTxHandler = new TxHandler(new UTXOPool());
         this.blockHashtoHeight.put(genesisBlockHash, 0);
         this.blockHashtoBlock.put(genesisBlockHash, genesisBlock);
-        this.blockHashtoTxHandler.put(genesisBlockHash, new TxHandler(new UTXOPool()));
-        this.handleCoinbaseTx(genesisBlock.getCoinbase(), this.blockHashtoTxHandler.get(genesisBlockHash));
+        this.blockHashtoTxHandler.put(genesisBlockHash, genesisTxHandler);
+        this.handleCoinbaseTx(genesisBlock.getCoinbase(), genesisTxHandler);
    
         // initialize the max height block and tx handler
         this.maxHeightBlock = genesisBlock;
-        this.maxHeightTxHandler = this.blockHashtoTxHandler.get(genesisBlockHash);
+        this.maxHeightTxHandler = genesisTxHandler;
         this.maxHeight = 0;
     }
 
@@ -59,7 +60,7 @@ public class BlockChain {
     /** Get the UTXOPool for mining a new block on top of max height block */
     public UTXOPool getMaxHeightUTXOPool() {
         // IMPLEMENT THIS
-        return this.maxHeightTxHandler.getUTXOPool();
+        return new UTXOPool(this.maxHeightTxHandler.getUTXOPool());
     }
 
     /** Get the transaction pool to mine a new block */
@@ -88,12 +89,9 @@ public class BlockChain {
             return false; 
         }
 
-
         ByteArrayWrapper blockHash = new ByteArrayWrapper(block.getHash());
         ByteArrayWrapper prevBlockHash = new ByteArrayWrapper(block.getPrevBlockHash());
-
-        if (!this.blockHashtoHeight.containsKey(prevBlockHash) || 
-             this.blockHashtoHeight.containsKey(blockHash)){
+        if (!this.blockHashtoHeight.containsKey(prevBlockHash)){
             return false; 
         }
 
@@ -104,18 +102,21 @@ public class BlockChain {
         }
 
         TxHandler newTxHandler = new TxHandler(new UTXOPool(this.blockHashtoTxHandler.get(prevBlockHash).getUTXOPool()));
-        this.handleCoinbaseTx(block.getCoinbase(), newTxHandler);
         
         // handle transactions in the block
          Transaction[] validTxs = newTxHandler.handleTxs(
             block.getTransactions().toArray(new Transaction[0])
         );
 
+        // there is some invalid transactions in the block itself 
         if (validTxs.length != block.getTransactions().size()){
             return false; 
         }
 
-        // add new block info to blockchain 
+        // add handle coinbase tx after validation
+        this.handleCoinbaseTx(block.getCoinbase(), newTxHandler);
+
+        // add new block info to blockchain if all check passed 
         this.blockHashtoHeight.put(blockHash, newHeight);
         this.blockHashtoBlock.put(blockHash, block);
         this.blockHashtoTxHandler.put(blockHash, newTxHandler);
@@ -123,12 +124,9 @@ public class BlockChain {
         // update new max height block information
         if (newHeight > this.maxHeight){
             this.maxHeight = newHeight;
-        }        
-
-        if (this.maxHeight == newHeight){
             this.maxHeightBlock = block; 
             this.maxHeightTxHandler = newTxHandler;
-        }
+        }        
 
         // remove transactions from transaction pool
         for (Transaction tx : validTxs){
