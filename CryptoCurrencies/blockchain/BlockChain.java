@@ -42,7 +42,9 @@ public class BlockChain {
         this.blockHashtoHeight.put(genesisBlockHash, 0);
         this.blockHashtoBlock.put(genesisBlockHash, genesisBlock);
         this.blockHashtoTxHandler.put(genesisBlockHash, new TxHandler(new UTXOPool()));
-    
+        this.handleCoinbaseTx(genesisBlock.getCoinbase(), this.blockHashtoTxHandler.get(genesisBlockHash));
+   
+        // initialize the max height block and tx handler
         this.maxHeightBlock = genesisBlock;
         this.maxHeightTxHandler = this.blockHashtoTxHandler.get(genesisBlockHash);
         this.maxHeight = 0;
@@ -102,6 +104,16 @@ public class BlockChain {
         }
 
         TxHandler newTxHandler = new TxHandler(new UTXOPool(this.blockHashtoTxHandler.get(prevBlockHash).getUTXOPool()));
+        this.handleCoinbaseTx(block.getCoinbase(), newTxHandler);
+        
+        // handle transactions in the block
+         Transaction[] validTxs = newTxHandler.handleTxs(
+            block.getTransactions().toArray(new Transaction[0])
+        );
+
+        if (validTxs.length != block.getTransactions().size()){
+            return false; 
+        }
 
         // add new block info to blockchain 
         this.blockHashtoHeight.put(blockHash, newHeight);
@@ -118,11 +130,6 @@ public class BlockChain {
             this.maxHeightTxHandler = newTxHandler;
         }
 
-        // handle transactions in the block
-        Transaction[] validTxs = newTxHandler.handleTxs(
-            block.getTransactions().toArray(new Transaction[0])
-        );
-
         // remove transactions from transaction pool
         for (Transaction tx : validTxs){
             this.transactionPool.removeTransaction(tx.getHash());
@@ -136,4 +143,14 @@ public class BlockChain {
         // IMPLEMENT THIS
         this.transactionPool.addTransaction(tx);
     }
+
+    /**
+     * add coinbase tx output to utxopool of current
+     */
+    private void handleCoinbaseTx(Transaction coinbase, TxHandler handler){
+        for (int index = 0; index < coinbase.numOutputs(); index++){
+            Transaction.Output output = coinbase.getOutput(index);
+            handler.getUTXOPool().addUTXO(new UTXO(coinbase.getHash(), index), output);
+        }
+    }; 
 }
